@@ -22,10 +22,20 @@ public class NoteController {
     @Autowired
     private NoteService noteService;
 
-    @GetMapping
-    public ResponseEntity<List<Note>> getAllNotes(){
-
-        return new ResponseEntity<List<Note>>(noteService.getAllNotes(), HttpStatus.OK);
+    @GetMapping()
+    public ResponseEntity<ResponseData> getAllNotes(
+            @RequestParam(required = false) String title,
+            @RequestParam(required = false) String body,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ){
+        Pageable pageable = PageRequest.of(page != null ? page - 1 : 0, size != null ? size : 3);
+        Page<Note> data = noteService.searchNote(title, body, pageable);
+        List<Note> notes = data.getContent();
+        int totalPages = data.getTotalPages();
+        int currentPage = data.getNumber() + 1;
+        ResponseData responseData = new ResponseData(notes, currentPage, totalPages);
+        return new ResponseEntity<ResponseData>(responseData, HttpStatus.OK);
     }
 
     @PostMapping
@@ -43,19 +53,5 @@ public class NoteController {
         return new ResponseEntity<String>(noteService.deleteNote(id), HttpStatus.OK);
     }
 
-    @GetMapping("/search")
-    public ResponseEntity<ResponseData> searchNote(
-            @RequestParam(required = false) String title,
-            @RequestParam(required = false) String body,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ){
-        Pageable pageable = PageRequest.of(page != null ? page - 1 : 0, size != null ? size : 3);
-        Page<Note> data = noteService.searchNote(title, body, pageable);
-        List<Note> notes = data.getContent();
-        int totalPages = data.getTotalPages();
-        int currentPage = data.getNumber() + 1;
-        ResponseData responseData = new ResponseData(notes, currentPage, totalPages);
-        return new ResponseEntity<ResponseData>(responseData, HttpStatus.OK);
-    }
+
 }
