@@ -1,9 +1,11 @@
 package com.benjamin.api.Controllers;
 
-import com.benjamin.api.Models.ResponseData;
+import com.benjamin.api.Constants;
 import com.benjamin.api.Models.User;
 import com.benjamin.api.Models.UserResponse;
 import com.benjamin.api.Services.UserService;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import org.bson.types.ObjectId;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -14,11 +16,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCrypt;
 import org.springframework.web.bind.annotation.*;
 
+import javax.crypto.spec.SecretKeySpec;
+import javax.servlet.http.HttpServletRequest;
+import java.security.Key;
 import java.time.Instant;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 
 @RestController
@@ -52,7 +54,7 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<Optional<User>> logIn(@RequestBody Map<String, String> payload){
+    public ResponseEntity<Map<String, String>> logIn(@RequestBody Map<String, String> payload){
         String email = payload.get("email");
         String password = payload.get("password");
         Optional<User> user = userService.getUserByEmail(email);
@@ -66,7 +68,9 @@ public class UserController {
             return new ResponseEntity("Password incorrect", HttpStatus.BAD_REQUEST);
         }
         user.get().setPassword(null);
-        return new ResponseEntity(user, HttpStatus.OK);
+        Map<String, String> token = generateJWTToken(user.get());
+
+        return new ResponseEntity(token, HttpStatus.OK);
     }
 
     @GetMapping
@@ -90,6 +94,13 @@ public class UserController {
 
     }
 
+    @GetMapping("/me")
+    public ResponseEntity<Optional<User>> getUserMe(HttpServletRequest request){
+        String email =  request.getAttribute("email").toString();
+        return new ResponseEntity<Optional<User>>(userService.getUserByEmail(email), HttpStatus.OK);
+
+    }
+
     @PutMapping("/{id}")
     public ResponseEntity<User> updateUser(@PathVariable ObjectId id, @RequestBody Map<String, String> payload){
 
@@ -103,4 +114,22 @@ public class UserController {
         return new ResponseEntity<String>(userService.deleteUserById(id), HttpStatus.OK);
 
     }
+
+    private Map<String, String> generateJWTToken(User user) {
+        long timestamp = System.currentTimeMillis();
+        Key hmacKey = new SecretKeySpec(Base64.getDecoder().decode(Constants.API_SECRET_KEY),
+                SignatureAlgorithm.HS256.getJcaName());
+        String token = Jwts.builder()
+                .claim("email", user.getEmail())
+                .setSubject(user.getEmail())
+                .setId(UUID.randomUUID().toString())
+                .setIssuedAt(new Date(timestamp))
+                .setExpiration(new Date(timestamp + Constants.TOKEN_VALIDITY))
+                .signWith(hmacKey)
+                .compact();
+        Map<String, String> map = new HashMap<>();
+        map.put("token", token);
+        return map;
+    }
+
 }
